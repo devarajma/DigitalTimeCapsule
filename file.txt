@@ -1,0 +1,328 @@
+package ui;
+
+import database.TimeCapsuleDAO;
+import models.TimeCapsule;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+
+import javax.sound.sampled.*;
+import java.io.IOException;
+import java.net.URL;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class MainUI extends Application {
+    private final TimeCapsuleDAO dao = new TimeCapsuleDAO();
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    @Override
+    public void start(Stage primaryStage) {
+        primaryStage.setTitle("📜 Digital Time Capsule");
+
+        // UI Elements
+        TextField nameField = new TextField();
+        nameField.setPromptText("Enter your name");
+
+        TextArea messageField = new TextArea();
+        messageField.setPromptText("Write your secret message...");
+
+        DatePicker datePicker = new DatePicker();
+        TextField timeField = new TextField();
+        timeField.setPromptText("HH:MM (24-hour format)");
+
+        Button saveButton = new Button("💾 Save Capsule");
+        Button checkButton = new Button("🔍 Check Messages");
+        Label statusLabel = new Label();
+
+        // Save Button Action
+        saveButton.setOnAction(e -> {
+            String name = nameField.getText().trim();
+            String message = messageField.getText().trim();
+            String date = datePicker.getValue() != null ? datePicker.getValue().toString() : "";
+            String time = timeField.getText().trim();
+
+            if (name.isEmpty() || message.isEmpty() || date.isEmpty() || time.isEmpty()) {
+                statusLabel.setText("❌ Please fill all fields!");
+                return;
+            }
+
+            try {
+                LocalDateTime openDateTime = LocalDateTime.parse(date + " " + time, formatter);
+                TimeCapsule capsule = new TimeCapsule(name, message, openDateTime);
+                dao.saveCapsule(capsule);
+                statusLabel.setText("✅ Time capsule saved!");
+            } catch (Exception ex) {
+                statusLabel.setText("❌ Invalid date/time format!");
+            }
+        });
+
+        // Check Messages Button Action
+        checkButton.setOnAction(e -> checkAndShowMessages());
+
+        // Auto-check every minute
+        Timer timer = new Timer(true);
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> checkAndShowMessages());  // Run on JavaFX thread
+            }
+        }, 0, 60 * 1000); // Runs every minute
+
+        // Layout
+        VBox layout = new VBox(10, nameField, messageField, datePicker, timeField, saveButton, checkButton, statusLabel);
+        layout.setPadding(new Insets(20));
+
+        Scene scene = new Scene(layout, 400, 400);
+        scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/ui/styles.css")).toExternalForm()); // Load custom styles
+        primaryStage.setScene(scene);
+        primaryStage.show();
+    }
+
+    // Check messages and show a pop-up with a beep sound
+    private void checkAndShowMessages() {
+        List<TimeCapsule> capsules = dao.getReadyToOpenCapsules();
+        if (!capsules.isEmpty()) {
+            StringBuilder messages = new StringBuilder("📜 Opened Messages:\n");
+            for (TimeCapsule capsule : capsules) {
+                messages.append("\n🔔 From: ").append(capsule.getUserName())
+                        .append("\n📖 ").append(capsule.getMessage()).append("\n");
+            }
+            playBeepSound();
+            showPopup(messages.toString());
+        }
+    }
+
+    // Play beep sound
+    private void playBeepSound() {
+        try {
+            URL soundURL = getClass().getResource("/beep.wav");  // Corrected file path
+            if (soundURL == null) {
+                System.out.println("❌ Beep sound file not found!");
+                return;
+            }
+
+            AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(soundURL);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioInputStream);
+            clip.start();
+        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+            System.out.println("❌ Error playing beep sound: " + e.getMessage());
+        }
+    }
+
+    // Show pop-up alert (Fixed JavaFX thread issue)
+    private void showPopup(String message) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK);
+            alert.setTitle("🔔 Time Capsule Reminder");
+            alert.setHeaderText("🎉 Your Messages are Ready!");
+            alert.show();
+        });
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
+
+
+package database;
+
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+
+public class MongoDBConnection {
+    private static final String URI = "mongodb://localhost:27017";
+    private static final String DATABASE_NAME = "timeCapsuleDB";
+
+    public static MongoDatabase getDatabase() {
+        MongoClient mongoClient = MongoClients.create(URI);
+        return mongoClient.getDatabase(DATABASE_NAME);
+    }
+}
+
+
+
+package app;
+
+import database.TimeCapsuleDAO;
+import models.TimeCapsule;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.Scanner;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class TimeCapsuleApp {
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    public static void main(String[] args) {
+        TimeCapsuleDAO dao = new TimeCapsuleDAO();
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("🌟 Welcome to the Digital Time Capsule!");
+        System.out.print("Enter your name: ");
+        String name = scanner.nextLine();
+
+        System.out.print("Write your secret message: ");
+        String message = scanner.nextLine();
+
+        LocalDateTime openDateTime = null;
+        while (openDateTime == null) {
+            System.out.print("Enter the date and time to open (YYYY-MM-DD HH:MM): ");
+            String inputDate = scanner.nextLine();
+
+            try {
+                openDateTime = LocalDateTime.parse(inputDate, FORMATTER);
+            } catch (DateTimeParseException e) {
+                System.out.println("❌ Invalid date format! Please use 'YYYY-MM-DD HH:MM'. Example: 2025-04-01 14:30");
+            }
+        }
+
+        TimeCapsule capsule = new TimeCapsule(name, message, openDateTime);
+        dao.saveCapsule(capsule);
+        System.out.println("✅ Your time capsule has been saved!");
+
+        // Check every minute for messages that should be opened
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                List<TimeCapsule> capsules = dao.getReadyToOpenCapsules();
+                for (TimeCapsule cap : capsules) {
+                    System.out.println("🔔 Reminder: " + cap.getUserName() + ", your message is ready to be opened!");
+                    System.out.println("📜 Message: " + cap.getMessage());
+                }
+            }
+        }, 0, 60 * 1000); // Runs every minute
+    }
+}
+
+
+
+
+
+package database;
+
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.FindIterable;
+import models.TimeCapsule;
+import org.bson.Document;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+public class TimeCapsuleDAO {
+    private final MongoCollection<Document> collection;
+
+    public TimeCapsuleDAO() {
+        this.collection = MongoDBConnection.getDatabase().getCollection("capsules");
+    }
+
+    public void saveCapsule(TimeCapsule capsule) {
+        collection.insertOne(capsule.toDocument());
+    }
+
+    public List<TimeCapsule> getReadyToOpenCapsules() {
+        List<TimeCapsule> capsules = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (Document doc : collection.find()) {
+            TimeCapsule capsule = TimeCapsule.fromDocument(doc);
+            if (capsule != null && capsule.getOpenDateTime().isBefore(now)) {
+                capsules.add(capsule);
+            }
+        }
+        return capsules;
+    }
+
+}
+
+
+
+
+package models;
+
+import org.bson.Document;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class TimeCapsule {
+    private String userName;
+    private String message;
+    private LocalDateTime openDateTime;
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    public TimeCapsule(String userName, String message, LocalDateTime openDateTime) {
+        this.userName = userName;
+        this.message = message;
+        this.openDateTime = openDateTime;
+    }
+
+    public Document toDocument() {
+        return new Document("userName", userName)
+                .append("message", message)
+                .append("openDateTime", openDateTime.format(FORMATTER));
+    }
+
+    public static TimeCapsule fromDocument(Document doc) {
+        String userName = doc.getString("userName");
+        String message = doc.getString("message");
+        String openDateTimeStr = doc.getString("openDateTime");
+
+        if (openDateTimeStr == null || openDateTimeStr.isEmpty()) {
+            System.out.println("⚠️ Warning: Document missing 'openDateTime': " + doc);
+            return null; // Prevents crashing on bad data
+        }
+
+        LocalDateTime openDateTime;
+        try {
+            openDateTime = LocalDateTime.parse(openDateTimeStr, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        } catch (Exception e) {
+            System.out.println("❌ Invalid date format in DB: " + openDateTimeStr);
+            return null; // Prevents crashing on bad date formats
+        }
+
+        return new TimeCapsule(userName, message, openDateTime);
+    }
+
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public LocalDateTime getOpenDateTime() {
+        return openDateTime;
+    }
+}
+
+
+.root {
+    -fx-background-color: #f4f4f4;
+    -fx-font-family: Arial, sans-serif;
+}
+
+.button {
+    -fx-font-size: 14px;
+    -fx-padding: 10px;
+}
+
+.label {
+    -fx-font-size: 16px;
+}
