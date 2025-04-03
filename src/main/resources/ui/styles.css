@@ -1,13 +1,68 @@
+/*.root {*/
+/*    -fx-background-color: #f4f4f4;*/
+/*    -fx-font-family: Arial, sans-serif;*/
+/*}*/
+
+/*.button {*/
+/*    -fx-font-size: 14px;*/
+/*    -fx-padding: 10px;*/
+/*}*/
+
+/*.label {*/
+/*    -fx-font-size: 16px;*/
+/*}*/
+
+
+
 .root {
-    -fx-background-color: #f4f4f4;
-    -fx-font-family: Arial, sans-serif;
+    -fx-background-color: #f5f5f5;
+    -fx-font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.text-field, .text-area, .date-picker {
+    -fx-font-size: 14px;
+    -fx-padding: 5px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #cccccc;
+}
+
+.text-area {
+    -fx-background-insets: 0;
+    -fx-padding: 5px;
 }
 
 .button {
     -fx-font-size: 14px;
-    -fx-padding: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 16px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-background-color: #4a90e2;
+    -fx-text-fill: white;
 }
 
-.label {
-    -fx-font-size: 16px;
+.button:hover {
+    -fx-background-color: #3a7bc8;
+}
+
+.list-view {
+    -fx-border-color: #dddddd;
+    -fx-background-insets: 0;
+    -fx-padding: 5px;
+}
+
+.list-cell {
+    -fx-padding: 8px;
+    -fx-border-color: transparent transparent #eeeeee transparent;
+}
+
+.list-cell:filled:hover {
+    -fx-background-color: #f0f0f0;
 }
